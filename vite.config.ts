@@ -8,8 +8,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/auth': 'http://localhost:3000',
-      '/api': 'http://localhost:3000'
+      '/auth': 'https://sb1-gh3nfrs2-d99r4k29u-l0nezer0ls-projects.vercel.app',
+      '/api': 'https://sb1-gh3nfrs2-d99r4k29u-l0nezer0ls-projects.vercel.app'
     }
   }
 });
