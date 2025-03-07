@@ -31,9 +31,9 @@ passport.use(
   new SteamStrategy(
     {
       returnURL:
-        'https://sb1gh3nfrs2-wfkm--5173--495c5120.local-corp.webcontainer.io/auth/steam/return',
+        'https://sb1-gh3nfrs2-d99r4k29u-l0nezer0ls-projects.vercel.app/auth/steam/return',
       realm:
-        'https://sb1gh3nfrs2-wfkm--5173--495c5120.local-corp.webcontainer.io/',
+        'https://sb1-gh3nfrs2-d99r4k29u-l0nezer0ls-projects.vercel.app/',
       apiKey: '970A289BA0A65C1828BD1537D2FC2471', // Replace with your Steam API key
     },
     (identifier, profile, done) => {
