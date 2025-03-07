@@ -38,8 +38,8 @@ passport.deserializeUser((obj, done) => {
 passport.use(
   new SteamStrategy(
     {
-      returnURL: 'https://sb1-gh3nfrs2-7tytkd92x-l0nezer0ls-projects.vercel.app/auth/steam/return',
-      realm: 'https://sb1-gh3nfrs2-7tytkd92x-l0nezer0ls-projects.vercel.app/',
+      returnURL: 'https://sb1-gh3nfrs2-httzvyp0b-l0nezer0ls-projects.vercel.app/auth/steam/return',
+      realm: 'https://sb1-gh3nfrs2-httzvyp0b-l0nezer0ls-projects.vercel.app/',
       apiKey: '2947BF3844A8EDE405F7CBA93B4A9F7B', // Replace with your Steam API key
     },
     (identifier, profile, done) => {
