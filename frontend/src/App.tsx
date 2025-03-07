@@ -20,43 +20,43 @@ function App() {
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
   const [steamUser, setSteamUser] = useState<SteamUser | null>(null);
 
-  // Fetch TF2 key price from Steam market
-  const { data: keyPriceData, error: keyPriceError } = useSWR(
-    'https://steamcommunity.com/market/priceoverview/?appid=440&currency=1&market_hash_name=Mann%20Co.%20Supply%20Crate%20Key',
-    fetcher,
-    {
-      refreshInterval: 300000 // Refresh every 5 minutes
-    }
-  );
+  // Fetch TF2 key price from Steam market using the proxy
+const { data: keyPriceData, error: keyPriceError } = useSWR(
+  `/api/market/priceoverview?appid=440&currency=1&market_hash_name=Mann%20Co.%20Supply%20Crate%20Key`,
+  fetcher,
+  {
+    refreshInterval: 300000, // Refresh every 5 minutes
+  }
+);
 
-  // Handle Steam login
-  const handleSteamLogin = () => {
-    window.location.href = '/auth/steam'; // This would be your Steam OpenID endpoint
+// Handle Steam login
+const handleSteamLogin = () => {
+  window.location.href = '/auth/steam'; // This would be your Steam OpenID endpoint
+};
+
+// Calculate required cards and cost
+const calculateLevelingDetails = (current: number, desired: number) => {
+  if (current >= desired) return { cards: 0, keys: 0, time: 0 };
+
+  let totalCards = 0;
+  for (let i = current; i < desired; i++) {
+    totalCards += i * 10;
+  }
+
+  const cardsPerKey = 300;
+  const keysNeeded = totalCards / cardsPerKey;
+  const estimatedHours = totalCards / 100;
+
+  return {
+    cards: totalCards,
+    keys: Math.ceil(keysNeeded),
+    time: estimatedHours.toFixed(1),
   };
+};
 
-  // Calculate required cards and cost
-  const calculateLevelingDetails = (current: number, desired: number) => {
-    if (current >= desired) return { cards: 0, keys: 0, time: 0 };
-    
-    let totalCards = 0;
-    for (let i = current; i < desired; i++) {
-      totalCards += i * 10;
-    }
-    
-    const cardsPerKey = 300;
-    const keysNeeded = totalCards / cardsPerKey;
-    const estimatedHours = totalCards / 100;
-    
-    return {
-      cards: totalCards,
-      keys: Math.ceil(keysNeeded),
-      time: estimatedHours.toFixed(1)
-    };
-  };
-
-  const levelDetails = calculateLevelingDetails(currentLevel, desiredLevel);
-  const keyPrice = keyPriceData?.lowest_price ? parseFloat(keyPriceData.lowest_price.replace('$', '')) : 0;
-  const totalCost = (levelDetails.keys * keyPrice).toFixed(2);
+const levelDetails = calculateLevelingDetails(currentLevel, desiredLevel);
+const keyPrice = keyPriceData?.lowest_price ? parseFloat(keyPriceData.lowest_price.replace('$', '')) : 0;
+const totalCost = (levelDetails.keys * keyPrice).toFixed(2);
 
   // Testimonials data
   const testimonials = [
