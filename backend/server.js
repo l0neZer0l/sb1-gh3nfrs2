@@ -12,21 +12,21 @@ const app = express();
 
 // Enable CORS
 app.use(cors({
-  origin: 'http://localhost:3000', // Replace with your actual StackBlitz frontend URL
+  origin: 'http://localhost:3000',
   credentials: true,
 }));
 
 // Session setup
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || '12345', // Use environment variable for secret
+    secret: process.env.SESSION_SECRET || '12345',
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false, // Set to true if using HTTPS
+      secure: false,
       httpOnly: true,
-      sameSite: 'lax', // Helps with cross-origin requests
-      maxAge: 1000 * 60 * 60 * 24, // 1 day
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24,
     },
   })
 );
@@ -40,6 +40,7 @@ passport.serializeUser((user, done) => {
 });
 
 passport.deserializeUser((obj, done) => {
+  console.log('Deserializing user:', obj);
   done(null, obj);
 });
 
@@ -49,11 +50,15 @@ passport.use(
     {
       returnURL: 'http://localhost:5000/auth/steam/return',
       realm: 'http://localhost:5000',
-      apiKey: process.env.STEAM_API_KEY, // Use environment variable for Steam API key
+      apiKey: process.env.STEAM_API_KEY,
     },
     (identifier, profile, done) => {
       console.log('Steam profile:', profile);
-      return done(null, profile);
+      const user = {
+        ...profile,
+        photos: profile.photos,
+      };
+      return done(null, user);
     }
   )
 );
@@ -65,20 +70,22 @@ app.get('/auth/steam', (req, res, next) => {
 }, passport.authenticate('steam'));
 
 app.get('/auth/steam/return', passport.authenticate('steam', { failureRedirect: '/' }), (req, res) => {
-  console.log('User after authentication:', req.user); // Log the user object
+  console.log('User after authentication:', req.user);
   res.redirect('http://localhost:3000');
 });
 
 app.get('/api/user', (req, res) => {
-  console.log('User from session:', req.user); // Log the user object
+  console.log('User from session:', req.user);
   res.json(req.user || null);
 });
 
 // New route to fetch the user's Steam level
 app.get('/api/user/level', async (req, res) => {
   try {
-    const steamid = req.user?.steamid; // Get the logged-in user's Steam ID
+    console.log('User object:', req.user);
+    const steamid = req.user?._json?.steamid;
     if (!steamid) {
+      console.log('No steamid found in session');
       return res.status(400).json({ error: 'User not logged in' });
     }
 

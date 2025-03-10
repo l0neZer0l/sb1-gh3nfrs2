@@ -3,13 +3,21 @@ import { Bot, ShieldCheck, Clock, DollarSign, CreditCard, BarChart, CheckCircle2
 import useSWR from 'swr';
 import axios from 'axios';
 
+axios.defaults.withCredentials = true;
+
 const fetcher = (url: string) => axios.get(url).then(res => res.data);
 
 interface SteamUser {
-  steamid: string;
-  personaname: string;
-  avatarfull: string;
+  provider: string;
+  id: string;
+  displayName: string;
+  photos: { value: string }[];
   level: number;
+  _json: {
+    steamid: string;
+    personaname: string;
+    avatarfull: string;
+  };
 }
 
 function App() {
@@ -46,10 +54,12 @@ function App() {
           // User is logged in, fetch the level
           axios.get('/api/user/level')
             .then(levelResponse => {
-              setSteamUser({
+              const userData = {
                 ...response.data,
                 level: levelResponse.data.level || 0, // Add the level property
-              });
+              };
+              setSteamUser(userData); // Update the state
+              console.log('Steam User:', userData); // Log the user object
             })
             .catch(error => {
               console.error('Failed to fetch user level:', error);
@@ -244,12 +254,12 @@ function App() {
                     <div>
                       <div className="flex items-center mb-6">
                         <img 
-                          src={steamUser.avatarfull} 
-                          alt={steamUser.personaname} 
+                          src={steamUser.photos?.[2]?.value || "/path/to/default-avatar.png"} 
+                          alt={steamUser.displayName || "User"} 
                           className="w-12 h-12 rounded-full mr-4"
                         />
                         <div>
-                          <h3 className="font-semibold">{steamUser.personaname}</h3>
+                          <h3 className="font-semibold">{steamUser.displayName || "User"}</h3>
                           <p className="text-[#FFE135]">Current Level: {steamUser.level}</p>
                         </div>
                       </div>
@@ -356,7 +366,7 @@ function App() {
                 </div>
                 <h3 className="text-xl font-semibold mb-3">Secure Trading</h3>
                 <p className="text-gray-400">
-                  All transactions are handled through secure Steam trading, with no account access required from you.
+                  All transactions are handled through secure Steam trading.
                 </p>
               </div>
               
