@@ -98,6 +98,35 @@ app.get('/api/user/level', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch Steam level' });
   }
 });
+// Ladder Rank
+app.get('/api/steamladder/rank', async (req, res) => {
+  const steamId = req.query.steamId;
+  const apiKey = process.env.STEAMLADDER_API_KEY;
+
+  console.log('Fetching SteamLadder rank for Steam ID:', steamId); // Log the Steam ID
+  console.log('Using API Key:', apiKey ? '***' : 'Not found'); // Log if the API key is present
+
+  try {
+    const response = await axios.get(`https://steamladder.com/api/v1/profile/${steamId}/`, {
+      headers: {
+        Authorization: `Token ${apiKey}`,
+      },
+      timeout: 60000, // Increase timeout to 60 seconds
+    });
+    console.log('SteamLadder API response:', response.data); // Log the full response
+
+    // Extract the rank from the response
+    const rank = response.data.ladder_rank.worldwide_xp; // Use worldwide_xp as the rank
+    res.json({ rank });
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error('Error fetching SteamLadder rank:', error.response?.data || error.message); // Log detailed error
+    } else {
+      console.error('An unexpected error occurred:', error); // Log generic error
+    }
+    res.status(500).json({ error: 'Failed to fetch SteamLadder rank' });
+  }
+});
 
 // Proxy route for Steam Market API
 app.get('/api/market/priceoverview', async (req, res) => {
