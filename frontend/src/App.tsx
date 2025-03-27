@@ -3,6 +3,9 @@ import { Bot, ShieldCheck, Clock, DollarSign, CreditCard, BarChart, CheckCircle2
 import useSWR from 'swr';
 import axios from 'axios';
 import steamLogo from './assets/steam-1.svg';
+import { ArrowUpRight , Trash2 } from 'lucide-react'; 
+import { toast, ToastContainer , ToastIcon } from 'react-toastify'; // Add this import
+import 'react-toastify/dist/ReactToastify.css';
 
 axios.defaults.withCredentials = true;
 
@@ -14,10 +17,12 @@ interface SteamUser {
   displayName: string;
   photos: { value: string }[];
   level: number;
+  profileUrl: string; 
   _json: {
     steamid: string;
     personaname: string;
     avatarfull: string;
+    profileurl?: string; 
   };
 }
 
@@ -32,93 +37,351 @@ function App() {
   const [isAccountModalOpen, setIsAccountModalOpen] = useState<boolean>(false); // Add this line
 
   // Add this modal component
-const AccountModal = ({ user, onClose }: { user: SteamUser | null; onClose: () => void }) => {
-  if (!user) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
-      <div className="bg-[#222222] rounded-xl shadow-lg w-full max-w-md p-6">
-        {/* Modal Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold">Account Details</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-
-        {/* User Avatar and Name */}
-        <div className="flex items-center space-x-4 mb-6">
-          <img
-            src={user.photos?.[2]?.value || "/path/to/default-avatar.png"}
-            alt={user.displayName}
-            className="w-16 h-16 rounded-full"
-          />
-          <div>
-            <h3 className="text-xl font-semibold">{user.displayName}</h3>
-            <p className="text-[#FFE135]">Level {user.level}</p>
+  const AccountModal = ({ user, onClose, setSteamUser }: { 
+    user: SteamUser | null; 
+    onClose: () => void; 
+    setSteamUser: (user: SteamUser | null) => void 
+  }) => {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [tradeUrl, setTradeUrl] = useState("");
+    const [isUrlValid, setIsUrlValid] = useState(false);
+    const [initialLoad, setInitialLoad] = useState(true);
+  
+    // Enhanced URL validation with custom profile support
+    const validateTradeUrl = (url: string): boolean => {
+      if (!user || !url.trim()) return false;
+      
+      try {
+        const urlObj = new URL(url);
+        const params = new URLSearchParams(urlObj.search);
+        const partnerId = params.get('partner');
+        const token = params.get('token');
+        
+        // Basic structure checks
+        const isValidStructure = (
+          urlObj.hostname === 'steamcommunity.com' &&
+          urlObj.pathname.includes('/tradeoffer/new') &&
+          !!token
+        );
+  
+        // For custom profiles, we only check structure
+        const isCustomProfile = user.profileUrl.includes('/id/');
+        
+        return isValidStructure && (
+          isCustomProfile ||  // Accept if custom profile
+          partnerId === user._json.steamid  // Strict check for non-custom
+        );
+      } catch {
+        return false;
+      }
+    };
+  
+    // Load and validate trade URL when modal opens
+    useEffect(() => {
+      if (!user || !initialLoad) return;
+  
+      const fetchAndValidateTradeUrl = async () => {
+        try {
+          const response = await axios.get('/api/user/trade-url', {
+            withCredentials: true
+          });
+          
+          if (response.data.tradeUrl && validateTradeUrl(response.data.tradeUrl)) {
+            setTradeUrl(response.data.tradeUrl);
+            setIsUrlValid(true);
+          } else {
+            // Clear invalid URL from backend
+            if (response.data.tradeUrl) {
+              await axios.post('/api/user/trade-url', 
+                { tradeUrl: "" },
+                { withCredentials: true }
+              );
+            }
+            setTradeUrl("");
+          }
+        } catch (error) {
+          console.error('Failed to fetch trade URL:', error);
+          setTradeUrl("");
+        } finally {
+          setInitialLoad(false);
+        }
+      };
+  
+      fetchAndValidateTradeUrl();
+    }, [user, initialLoad]);
+  
+    // Validate URL when it changes
+    useEffect(() => {
+      if (!initialLoad) {
+        setIsUrlValid(validateTradeUrl(tradeUrl));
+      }
+    }, [tradeUrl]);
+  
+    const handleTradeUrlSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!tradeUrl.trim() || !isUrlValid || !user) return;
+  
+      setIsSubmitting(true);
+      
+      try {
+        const response = await axios.post(
+          '/api/user/trade-url',
+          { tradeUrl },
+          { withCredentials: true }
+        );
+        
+        toast.success(response.data.message || 'Trade URL saved successfully!');
+        onClose();
+      } catch (error) {
+        const errorMessage = axios.isAxiosError(error) 
+          ? error.response?.data?.error || 'Failed to save URL'
+          : 'An unexpected error occurred';
+        
+        toast.error(errorMessage);
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
+  
+    const handleAction = async (clearCache: boolean) => {
+      setIsSubmitting(true);
+  
+      try {
+        await axios.post(
+          '/api/auth/logout',
+          { clearCache },
+          { withCredentials: true }
+        );
+  
+        if (clearCache) {
+          // Clear all client-side storage
+          document.cookie = 'tradeUrl=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+          localStorage.removeItem(`steamLadderRank_${user?.id}`);
+          localStorage.removeItem(`steamLadderLevel_${user?.id}`);
+        }
+  
+        setSteamUser(null);
+        onClose();
+        
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 300);
+        
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error 
+            ? error.message
+            : 'Failed to complete the action';
+        toast.error(errorMessage);
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
+  
+    if (!user) return null;
+  
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+        <div className="bg-[#222222] rounded-xl shadow-lg w-full max-w-lg p-6 animate-fade-in">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold">Account Details</h2>
+            <button 
+              onClick={onClose} 
+              className="text-gray-400 hover:text-white transition-colors"
+              disabled={isSubmitting}
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+  
+          <div className="flex items-center space-x-4 mb-6">
+            <img
+              src={user._json.avatarfull}
+              alt={user.displayName}
+              className="w-16 h-16 rounded-full border-2 border-[#FFE135]"
+            />
+            <div>
+              <h3 className="text-xl font-semibold">{user.displayName}</h3>
+              <p className="text-[#FFE135]">Level {user.level}</p>
+            </div>
+          </div>
+  
+          <form onSubmit={handleTradeUrlSubmit}>
+            <div className="mb-6">
+              <label className="block text-gray-400 mb-2">Steam Trade URL</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder={tradeUrl ? "" : "Paste your Steam trade URL here..."}
+                  value={tradeUrl}
+                  onChange={(e) => setTradeUrl(e.target.value)}
+                  className={`flex-1 bg-[#333333] border ${
+                    tradeUrl ? (isUrlValid ? 'border-green-500' : 'border-red-500') : 'border-gray-700'
+                  } rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-[#FFE135]`}
+                  disabled={isSubmitting}
+                />
+                <button
+                  type="button"
+                  onClick={() => window.open(`${user.profileUrl}/tradeoffers/privacy`, '_blank')}
+                  className="bg-[#1b2838] hover:bg-[#2a475e] text-white px-4 py-2 rounded-lg transition-all flex items-center gap-2 hover:scale-[1.02] active:scale-95"
+                  disabled={isSubmitting}
+                >
+                  <ArrowUpRight className="h-4 w-4" />
+                  <span>Get URL</span>
+                </button>
+              </div>
+              {tradeUrl && !isUrlValid && (
+                <p className="text-red-400 text-sm mt-1">
+                  Please enter a valid Steam trade URL that matches your account
+                </p>
+              )}
+            </div>
+  
+            <button
+              type="submit"
+              disabled={!isUrlValid || isSubmitting}
+              className="w-full mb-4 flex justify-center items-center gap-2 bg-[#FFE135] hover:bg-[#FFD700] text-[#1A1A1A] font-bold py-3 px-6 rounded-lg transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                'Save Trade URL'
+              )}
+            </button>
+          </form>
+  
+          <div className="space-y-3">
+            <button
+              onClick={() => handleAction(false)}
+              disabled={isSubmitting}
+              className="w-full flex justify-center items-center gap-2 bg-[#1b2838] hover:bg-[#2a475e] text-white font-bold py-3 px-6 rounded-lg transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+            >
+              Sign Out
+            </button>
+            <button
+              onClick={() => handleAction(true)}
+              disabled={isSubmitting}
+              className="w-full flex justify-center items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+            >
+              Delete Account
+            </button>
           </div>
         </div>
-
-        {/* Steam Trade URL */}
-        <div className="mb-6">
-          <label className="block text-gray-400 mb-2">Steam Trade URL</label>
-          <input
-            type="text"
-            placeholder="Enter your Steam Trade URL"
-            defaultValue={user.tradeUrl || ""} // Fetch or allow manual input
-            className="w-full bg-[#333333] border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-[#FFE135]"
-          />
-        </div>
-
-        {/* Sign Out Button */}
-        <button
-          onClick={() => {
-            axios.post('/api/auth/logout').then(() => {
-              onClose(); // Close the modal
-              setSteamUser(null); // Clear user state
-              window.location.reload(); // Refresh the page
-            });
-          }}
-          className="w-full bg-red-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-red-700 transition-colors"
-        >
-          Sign Out
-        </button>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
-  // Fetch SteamLadder rank
-  const fetchSteamLadderRank = async (steamId: string) => {
-    try {
-      console.log('Fetching SteamLadder rank for Steam ID:', steamId); // Log the Steam ID
-      const response = await axios.get(`/api/steamladder/rank?steamId=${steamId}`);
-      console.log('SteamLadder rank response:', response.data); // Log the response
-      return response.data.rank; // Returns the user's world rank
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.error('Error fetching SteamLadder rank:', error.response?.data || error.message); // Log detailed error
-      } else {
-        console.error('An unexpected error occurred:', error); // Log generic error
+  // Fetch SteamLadder rank with caching
+  const fetchSteamLadderRank = async (steamId: string, currentLevel: number) => {
+    if (!steamId) {
+      console.error('No steamId provided to fetchSteamLadderRank');
+      return null;
+    }
+  
+    // Check cache first
+    const cacheKey = `steamLadder_${steamId}`;
+    const cachedData = localStorage.getItem(cacheKey);
+    
+    if (cachedData) {
+      try {
+        const { rank, level, timestamp } = JSON.parse(cachedData);
+        
+        // Use cache if level matches and data is fresh (1 hour)
+        if (level === currentLevel && Date.now() - timestamp < 3600000) {
+          console.log('[Cache Hit] Using cached SteamLadder rank');
+          return rank;
+        }
+      } catch (e) {
+        console.warn('Failed to parse cached rank data', e);
       }
+    }
+  
+    try {
+      console.log('[API Call] Fetching fresh SteamLadder rank for:', steamId);
+      const response = await axios.get(`/api/steamladder/rank?steamId=${encodeURIComponent(steamId)}`, {
+        withCredentials: true,
+        timeout: 5000 // Added timeout
+      });
+  
+      // NEW: Handle backend's response format
+      const rank = response.data?.rank || null;
+      
+      if (rank) {
+        // Update cache
+        localStorage.setItem(cacheKey, JSON.stringify({
+          rank,
+          level: currentLevel,
+          timestamp: Date.now()
+        }));
+      }
+  
+      return rank;
+    } catch (error) {
+      console.error(
+        'SteamLadder fetch failed:',
+        axios.isAxiosError(error) 
+          ? error.response?.data || error.message
+          : error
+      );
+      
+      // Fallback to cached data if available
+      if (cachedData) {
+        console.warn('Using stale cached data due to API failure');
+        return JSON.parse(cachedData).rank;
+      }
+      
       return null;
     }
   };
 
-  useEffect(() => {
-  if (steamUser) {
-    console.log('Steam user detected, fetching rank...'); // Log when the user is detected
-    fetchSteamLadderRank(steamUser.id).then((rank) => {
-      console.log('Fetched rank:', rank); // Log the fetched rank
-      setWorldRank(rank);
-    }).catch((error) => {
-      if (axios.isAxiosError(error)) {
-        console.error('Error fetching SteamLadder rank:', error.response?.data || error.message);
-      } else {
-        console.error('An unexpected error occurred:', error);
-      }
-    });
+  // Add this ABOVE your component's return statement
+const getRankMetadata = () => {
+  if (!steamUser || !worldRank) return null;
+  
+  const cacheKey = `steamLadder_${steamUser._json.steamid}`;
+  const cachedData = localStorage.getItem(cacheKey);
+  
+  if (!cachedData) return { isCached: false };
+  
+  try {
+    const { timestamp } = JSON.parse(cachedData);
+    return {
+      isCached: true,
+      lastUpdated: new Date(timestamp).toLocaleTimeString()
+    };
+  } catch (e) {
+    console.error('Error parsing cached rank data:', e);
+    return { isCached: false };
   }
+};
+
+// Usage in useEffect
+useEffect(() => {
+  if (!steamUser) return;
+
+  console.log('Fetching rank for user:', steamUser.displayName);
+  
+  const fetchRank = async () => {
+    try {
+      const rank = await fetchSteamLadderRank(
+        steamUser._json.steamid, 
+        steamUser.level
+      );
+      
+      setWorldRank(rank);
+      console.log('Rank update complete:', rank);
+    } catch (error) {
+      console.error('Rank fetch failed:', error);
+      setWorldRank(null);
+    }
+  };
+
+  fetchRank();
 }, [steamUser]);
   
   
@@ -273,7 +536,7 @@ const AccountModal = ({ user, onClose }: { user: SteamUser | null; onClose: () =
 {steamUser && (
   <div className="relative">
     <img
-      src={steamUser.photos?.[2]?.value || "/path/to/default-avatar.png"}
+      src={steamUser._json.avatarfull || "/path/to/default-avatar.png"}
       alt={steamUser.displayName}
       className="w-10 h-10 rounded-full cursor-pointer"
       onClick={() => setIsAccountModalOpen(true)} // Toggle dropdown on mobile
@@ -376,7 +639,7 @@ const AccountModal = ({ user, onClose }: { user: SteamUser | null; onClose: () =
             {steamUser && (
               <div className="flex items-center mb-6">
                 <img
-                  src={steamUser.photos?.[2]?.value || "/path/to/default-avatar.png"}
+                  src={steamUser._json.avatarfull || "/path/to/default-avatar.png"}
                   alt={steamUser.displayName || "User"}
                   className="w-12 h-12 rounded-full mr-4"
                 />
@@ -532,6 +795,16 @@ const AccountModal = ({ user, onClose }: { user: SteamUser | null; onClose: () =
   <p className="text-2xl font-bold text-[#FFE135]">
     {worldRank ? `#${worldRank}` : 'Rank unavailable'}
   </p>
+  {worldRank && (
+    <p className="text-xs text-gray-500 mt-1">
+      {(() => {
+        const meta = getRankMetadata();
+        return meta?.isCached 
+          ? `Last updated ${meta.lastUpdated}` 
+          : 'Live data';
+      })()}
+    </p>
+  )}
 </div>
         </div>
       </div>
@@ -754,10 +1027,12 @@ const AccountModal = ({ user, onClose }: { user: SteamUser | null; onClose: () =
        {/* Account Modal */}
     {isAccountModalOpen && (
       <AccountModal
-        user={steamUser}
-        onClose={() => setIsAccountModalOpen(false)} // Close the modal
-      />
+      user={steamUser}
+      onClose={() => setIsAccountModalOpen(false)}
+      setSteamUser={setSteamUser}
+    />
     )}
+    <ToastContainer position="bottom-right" autoClose={3000} theme="dark" />
     </div>
   );
 }
