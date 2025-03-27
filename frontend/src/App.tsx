@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, ShieldCheck, Clock, DollarSign, CreditCard, BarChart, CheckCircle2, ChevronDown, ArrowRight, Menu, X, Github, MessageSquare, Stamp as Steam } from 'lucide-react';
+import { Bot, ShieldCheck, Clock, DollarSign, BarChart, CheckCircle2, Menu, X, Github, MessageSquare, Stamp as Steam } from 'lucide-react';
 import useSWR from 'swr';
 import axios from 'axios';
 import steamLogo from './assets/steam-1.svg';
-import { ArrowUpRight , Trash2 } from 'lucide-react'; 
-import { toast, ToastContainer , ToastIcon } from 'react-toastify'; // Add this import
+import { ArrowUpRight } from 'lucide-react'; 
+import { toast, ToastContainer  } from 'react-toastify'; // Add this import
 import 'react-toastify/dist/ReactToastify.css';
 
 axios.defaults.withCredentials = true;
